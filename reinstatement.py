@@ -122,11 +122,11 @@ def jalankan_simulasi_monte_carlo(jumlah_iterasi, nama_dist_frekuensi, param_fre
 
 # Fungsi untuk mengalokasikan klaim ke UR dan layer dengan caching
 @st.cache_data
-def alokasikan_klaim(data_simulasi, ur, layer, data_iterasi, _cache_key=None):
+def alokasikan_klaim(data_simulasi, ur, layer, data_iterasi=None, _cache_key=None):
     hasil = []
     for idx, klaim in enumerate(data_simulasi):
         alokasi_klaim = {
-            'Iterasi': data_iterasi.iloc[idx]['Iterasi'],
+            'Iterasi': data_iterasi.iloc[idx]['Iterasi'] if data_iterasi is not None else f"Real.{idx+1}",
             'Severitas': int(klaim),
             'UR': 0,
             'Layer 1': 0,
@@ -177,13 +177,28 @@ def rangkum_berdasarkan_frekuensi(df_simulasi, df_soc, jumlah_iterasi, _cache_ke
 # Fungsi untuk merangkum layer tertentu dengan caching
 @st.cache_data
 def rangkum_layer(df_soc, nomor_layer, batas_layer, jumlah_iterasi, maks_reinstatement, _cache_key=None):
-    ringkasan_layer = df_soc.groupby(df_soc['Iterasi'].str.split('.').str[0]).agg({f'Layer {nomor_layer}': 'sum'}).rename(columns={f'Layer {nomor_layer}': f'Total Layer {nomor_layer}'})
+    # Menghitung total severitas per layer
+    ringkasan_layer = df_soc.groupby(df_soc['Iterasi'].str.split('.').str[0]).agg({
+        f'Layer {nomor_layer}': 'sum',
+    }).rename(columns={f'Layer {nomor_layer}': f'Total Layer {nomor_layer}'})
+    
+    # Menghitung frekuensi (jumlah klaim dengan nilai > 0) per layer
+    frekuensi_layer = df_soc[df_soc[f'Layer {nomor_layer}'] > 0].groupby(
+        df_soc['Iterasi'].str.split('.').str[0]
+    ).size().to_frame(name=f'Frekuensi Layer {nomor_layer}')
     
     semua_iterasi = [str(i) for i in range(1, jumlah_iterasi + 1)]
     
     df_ringkasan = pd.DataFrame(index=semua_iterasi)
     df_ringkasan.index.name = 'Iterasi'
-    df_ringkasan[f'Total Layer {nomor_layer}'] = [ringkasan_layer.loc[str(i), f'Total Layer {nomor_layer}'] if str(i) in ringkasan_layer.index else 0 for i in semua_iterasi]
+    df_ringkasan[f'Total Layer {nomor_layer}'] = [
+        ringkasan_layer.loc[str(i), f'Total Layer {nomor_layer}'] if str(i) in ringkasan_layer.index else 0
+        for i in semua_iterasi
+    ]
+    df_ringkasan[f'Frekuensi Layer {nomor_layer}'] = [
+        frekuensi_layer.loc[str(i), f'Frekuensi Layer {nomor_layer}'] if str(i) in frekuensi_layer.index else 0
+        for i in semua_iterasi
+    ]
     
     for reinst in range(maks_reinstatement + 1):
         df_ringkasan[f'Reinstatement {reinst}'] = df_ringkasan.apply(
@@ -200,15 +215,18 @@ def hitung_premi(df_ringkasan_frekuensi, daftar_df_layer, layer, reinstatement_p
     maks_reinstatement = max(reinstatement_per_layer)
     
     for i, (df_layer, batas_layer, maks_reinst) in enumerate(zip(daftar_df_layer, layer, reinstatement_per_layer)):
+        nomor_layer = i + 1
         if batas_layer <= 0:
-            st.warning(f"Batas Layer {i+1} adalah 0. Premi untuk layer ini akan diabaikan.")
+            st.warning(f"Batas Layer {nomor_layer} adalah 0. Premi untuk layer ini akan diabaikan.")
             continue
         
         data_premi = {
-            'Item': [f'Layer {i+1}'],
+            'Item': [f'Layer {nomor_layer}'],
             'Batas': [int(batas_layer)],
-            'Rata-rata': [int(df_layer[f'Total Layer {i+1}'].mean())],
-            'Standar Deviasi': [int(df_layer[f'Total Layer {i+1}'].std())]
+            'Rata-rata Klaim': [int(df_layer[f'Total Layer {nomor_layer}'].mean())],
+            'Standar Deviasi Klaim': [int(df_layer[f'Total Layer {nomor_layer}'].std())],
+            'Frekuensi Klaim': [int(df_layer[f'Frekuensi Layer {nomor_layer}'].sum())],
+            'Total Klaim': [int(df_layer[f'Total Layer {nomor_layer}'].sum())]
         }
         df_premi = pd.DataFrame(data_premi)
         
@@ -241,17 +259,18 @@ def hitung_premi(df_ringkasan_frekuensi, daftar_df_layer, layer, reinstatement_p
     
     df_premi_kombinasi = pd.concat(daftar_df_premi, ignore_index=True)
     
-    total_premi = {}
+    total_premi = {
+        'Item': 'Total',
+        'Batas': '',
+        'Rata-rata Klaim': int(df_premi_kombinasi['Rata-rata Klaim'].sum()),
+        'Standar Deviasi Klaim': int(df_premi_kombinasi['Standar Deviasi Klaim'].sum()),
+        'Frekuensi Klaim': int(df_premi_kombinasi['Frekuensi Klaim'].sum()),
+        'Total Klaim': int(df_premi_kombinasi['Total Klaim'].sum())
+    }
     for reinst in range(maks_reinstatement + 1):
-        total_premi[f'Reinstatement {reinst}'] = df_premi_kombinasi[f'Reinstatement {reinst}'].sum()
+        total_premi[f'Reinstatement {reinst}'] = int(df_premi_kombinasi[f'Reinstatement {reinst}'].sum())
     
-    baris_total = pd.DataFrame({
-        'Item': ['Total'],
-        'Batas': [''],
-        'Rata-rata': [''],
-        'Standar Deviasi': [''],
-        **{f'Reinstatement {reinst}': [int(total_premi[f'Reinstatement {reinst}'])] for reinst in range(maks_reinstatement + 1)}
-    })
+    baris_total = pd.DataFrame([total_premi])
     df_premi_kombinasi = pd.concat([df_premi_kombinasi, baris_total], ignore_index=True)
     
     df_premi_kombinasi['Total'] = df_premi_kombinasi[[f'Reinstatement {i}' for i in range(maks_reinstatement + 1)]].sum(axis=1)
@@ -310,6 +329,43 @@ if file_severitas and file_frekuensi:
         st.error("Data frekuensi harus berisi bilangan bulat non-negatif.")
         st.stop()
     
+    # Input layer untuk data asli
+    st.header("Input Layer untuk Data Asli", divider="orange")
+    with st.container(border=True):
+        ur = st.number_input("OR", min_value=0, value=5000000000, step=1000000000, key="real_ur")
+        layer = []
+        for i in range(1, 7):  # Increased to 6 layers
+            batas = st.number_input(f"Layer {i}", min_value=0, value=5000000000 if i == 1 else 40000000000 if i == 2 else 50000000000 if i == 3 else 0, step=1000000, key=f"real_layer_{i}")
+            layer.append(batas)
+    
+    # Spreading of Claim untuk data asli
+    df_soc_real = alokasikan_klaim(data_severitas, ur, layer)
+    st.subheader("Spreading of Claim (Data Asli)", divider="orange")
+    st.dataframe(df_soc_real, hide_index=True, use_container_width=True)
+    
+    # Ringkasan untuk data asli
+    summary_data = []
+    for i, batas_layer in enumerate(layer, 1):
+        layer_data = df_soc_real[f'Layer {i}'].dropna()
+        summary_data.append({
+            'Item': f'Layer {i}',
+            'Batas': int(batas_layer),
+            'Rata-rata Klaim': int(layer_data.mean()) if not layer_data.empty else 0,
+            'Frekuensi Klaim': int(len(layer_data[layer_data > 0])),
+            'Total Klaim': int(layer_data.sum()) if not layer_data.empty else 0
+        })
+    df_summary = pd.DataFrame(summary_data)
+    total_row = {
+        'Item': 'Total',
+        'Batas': '',
+        'Rata-rata Klaim': int(df_summary['Rata-rata Klaim'].sum()),
+        'Frekuensi Klaim': int(df_summary['Frekuensi Klaim'].sum()),
+        'Total Klaim': int(df_summary['Total Klaim'].sum())
+    }
+    df_summary = pd.concat([df_summary, pd.DataFrame([total_row])], ignore_index=True)
+    st.subheader("Ringkasan Data Asli", divider="orange")
+    st.dataframe(df_summary, hide_index=True, use_container_width=True)
+    
     rata_rata_frekuensi = np.mean(data_frekuensi)
     varians_frekuensi = np.var(data_frekuensi)
     
@@ -346,16 +402,16 @@ if file_severitas and file_frekuensi:
     
     st.header("Input OR dan Layer untuk Spreading of Claim (SoC)", divider="orange")
     with st.container(border=True):
-        ur = st.number_input("OR", min_value=0, value=5000000000, step=1000000000)
-        layer = []
+        ur_sim = st.number_input("OR", min_value=0, value=5000000000, step=1000000000, key="sim_ur")
+        layer_sim = []
         reinstatement_per_layer = []
         for i in range(1, 7):
             col1, col2 = st.columns(2)
             with col1:
-                batas = st.number_input(f"Layer {i}", min_value=0, value=5000000000 if i == 1 else 40000000000 if i == 2 else 50000000000 if i == 3 else 0, step=1000000, key=f"layer_{i}")
+                batas = st.number_input(f"Layer {i}", min_value=0, value=5000000000 if i == 1 else 40000000000 if i == 2 else 50000000000 if i == 3 else 0, step=1000000, key=f"sim_layer_{i}")
             with col2:
-                reinst = st.number_input(f"Jumlah Reinstatement Layer {i}", min_value=0, max_value=100, value=4, step=1, key=f"reinst_{i}")
-            layer.append(batas)
+                reinst = st.number_input(f"Jumlah Reinstatement Layer {i}", min_value=0, max_value=100, value=4, step=1, key=f"sim_reinst_{i}")
+            layer_sim.append(batas)
             reinstatement_per_layer.append(reinst)
     
     if st.button("Jalankan Simulasi", type="primary"):
@@ -384,7 +440,7 @@ if file_severitas and file_frekuensi:
                 
                 # Generate unique cache key for claim allocation
                 cache_key_allocation = str(uuid.uuid4())
-                df_klaim = alokasikan_klaim(df_tabel['Severitas'].values, ur, layer, df_tabel, _cache_key=cache_key_allocation)
+                df_klaim = alokasikan_klaim(df_tabel['Severitas'].values, ur_sim, layer_sim, df_tabel, _cache_key=cache_key_allocation)
                 
                 st.subheader("2. Spreading of Claim (SoC)", divider="orange")
                 st.dataframe(df_klaim, hide_index=True, use_container_width=True)
@@ -399,7 +455,7 @@ if file_severitas and file_frekuensi:
                 for i in range(1, 7):
                     # Generate unique cache key for each layer summary
                     cache_key_layer = str(uuid.uuid4())
-                    df_layer = rangkum_layer(df_klaim, i, layer[i-1], jumlah_iterasi, reinstatement_per_layer[i-1], _cache_key=cache_key_layer)
+                    df_layer = rangkum_layer(df_klaim, i, layer_sim[i-1], jumlah_iterasi, reinstatement_per_layer[i-1], _cache_key=cache_key_layer)
                     st.subheader(f"{3+i}. Layer {i}", divider="orange")
                     st.dataframe(df_layer.drop(columns=["Iterasi"]), hide_index=True, use_container_width=True)
                     daftar_df_layer.append(df_layer)
@@ -409,7 +465,7 @@ if file_severitas and file_frekuensi:
                 df_premi = hitung_premi(
                     df_ringkasan_frekuensi,
                     daftar_df_layer,
-                    layer,
+                    layer_sim,
                     reinstatement_per_layer,
                     _cache_key=cache_key_premium
                 )
@@ -429,6 +485,8 @@ if file_severitas and file_frekuensi:
                 format_rupiah = '#,##0'
                 
                 daftar_lembar = [
+                    (df_summary, '0. Ringkasan Data Klaim'),
+                    (df_soc_real, '0.1. SoC (Data Klaim)'),
                     (df_premi, '1. Premi XoL'),
                     (df_tabel, '2. Hasil Simulasi'),
                     (df_klaim, '3. Spreading of Claim'),
@@ -439,6 +497,8 @@ if file_severitas and file_frekuensi:
                     (daftar_df_layer[3].drop(columns=["Iterasi"]), '8. Layer 4'),
                     (daftar_df_layer[4].drop(columns=["Iterasi"]), '9. Layer 5'),
                     (daftar_df_layer[5].drop(columns=["Iterasi"]), '10. Layer 6')
+                    
+                    
                 ]
                 
                 for df, nama_lembar in daftar_lembar:
