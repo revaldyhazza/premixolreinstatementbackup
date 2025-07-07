@@ -310,11 +310,8 @@ def ringkasan_data_asli(df_soc_real, ur, layer):
             'Rata-rata Klaim per OR/Layer': rata_rata_klaim
         })
     
-    # Buat DataFrame dan pastikan tidak ada baris Total
+    # Buat DataFrame
     df_summary = pd.DataFrame(summary_data)
-    if 'Total' in df_summary['Item'].values:
-        df_summary = df_summary[df_summary['Item'] != 'Total']
-    
     return df_summary
 
 # Aplikasi Streamlit
@@ -386,9 +383,8 @@ if file_severitas and file_frekuensi:
     # Ringkasan data asli dengan rata-rata klaim per OR dan layer
     st.subheader("Ringkasan Data Asli dengan Rata-rata Klaim per OR dan Layer", divider="orange")
     df_summary = ringkasan_data_asli(df_soc_real, ur, layer)
-    # Pastikan tidak ada baris Total sebelum ditampilkan
-    if 'Total' in df_summary['Item'].values:
-        df_summary = df_summary[df_summary['Item'] != 'Total']
+    # Drop baris "Total" secara eksplisit
+    df_summary = df_summary[df_summary['Item'] != 'Total']
     st.dataframe(df_summary, hide_index=True, use_container_width=True)
     
     # Bagian lain dari aplikasi Streamlit
