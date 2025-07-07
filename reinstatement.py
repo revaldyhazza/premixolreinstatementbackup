@@ -312,11 +312,9 @@ def ringkasan_data_asli(df_soc_real, ur, layer):
         })
     
     # Buat DataFrame tanpa baris Total
-    summary_data = summary_data.drop(index=7, inplace=True)
     df_summary = pd.DataFrame(summary_data)
     
     return df_summary
-
 # Aplikasi Streamlit
 st.set_page_config(page_title="XoL Reinstatement 💰", layout="wide", page_icon="📊")
 st.title("Pricing Excess of Loss dengan Reinstatement 📊")
