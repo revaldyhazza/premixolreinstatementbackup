@@ -311,19 +311,8 @@ def ringkasan_data_asli(df_soc_real, ur, layer):
             'Rata-rata Klaim per OR/Layer': rata_rata_klaim
         })
     
-    # Buat DataFrame
+    # Buat DataFrame tanpa baris Total
     df_summary = pd.DataFrame(summary_data)
-    
-    # Tambahkan baris total
-    total_row = {
-        'Item': 
-        'Batas': '',
-        'Rata-rata Klaim (All Polis)': int(df_summary['Rata-rata Klaim (All Polis)'].sum()),
-        'Frekuensi Klaim': int(df_summary['Frekuensi Klaim'].sum()),
-        'Total Klaim': int(df_summary['Total Klaim'].sum()),
-        'Rata-rata Klaim per OR/Layer': int(df_summary['Total Klaim'].sum() / df_summary['Frekuensi Klaim'].sum()) if df_summary['Frekuensi Klaim'].sum() > 0 else 0
-    }
-    df_summary = pd.concat([df_summary, pd.DataFrame([total_row])], ignore_index=True)
     
     return df_summary
 
@@ -345,7 +334,7 @@ if file_severitas and file_frekuensi:
     try:
         df_severitas = pd.read_excel(file_severitas)
         df_frekuensi = pd.read_excel(file_frekuensi)
-    except Exception as e:
+    except vivendo Exception as e:
         st.error(f"Gagal membaca file Excel: {str(e)}")
         st.stop()
     
@@ -393,7 +382,7 @@ if file_severitas and file_frekuensi:
     st.subheader("Spreading of Claim (Data Asli)", divider="orange")
     st.dataframe(df_soc_real, hide_index=True, use_container_width=True)
     
-    # Ringkasan data asli dengan rata-rata klaim per OR dan layer
+    # Ringkasan data asli dengan rata-rata klaim per OR dan layer (tanpa Total)
     st.subheader("Ringkasan Data Asli dengan Rata-rata Klaim per OR dan Layer", divider="orange")
     df_summary = ringkasan_data_asli(df_soc_real, ur, layer)
     st.dataframe(df_summary, hide_index=True, use_container_width=True)
@@ -405,7 +394,7 @@ if file_severitas and file_frekuensi:
     param_poisson = {'mu': rata_rata_frekuensi}
     param_negbinom = {
         'p': rata_rata_frekuensi / varians_frekuensi if varians_frekuensi > rata_rata_frekuensi else 0.99,
-        'n': rata_rata_frekuensi ** 2 / (varians_frekuensi - rata_rata_frekuensi) if varians_frekuensi > rata_rata_frekuensi else rata_rata_frekuensi
+        'n': rata_rata_frekuensi**2 / (varians_frekuensi - rata_rata_frekuensi) if varians_frekuensi > rata_rata_frekuensi else rata_rata_frekuensi
     }
     param_geom = {'p': 1 / rata_rata_frekuensi if rata_rata_frekuensi > 0 else 0.99}
     
