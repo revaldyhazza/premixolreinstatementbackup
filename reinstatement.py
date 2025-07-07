@@ -316,7 +316,7 @@ def ringkasan_data_asli(df_soc_real, ur, layer):
     
     # Tambahkan baris total
     total_row = {
-        'Item': 'Total',
+        'Item': 
         'Batas': '',
         'Rata-rata Klaim (All Polis)': int(df_summary['Rata-rata Klaim (All Polis)'].sum()),
         'Frekuensi Klaim': int(df_summary['Frekuensi Klaim'].sum()),
