@@ -312,6 +312,7 @@ def ringkasan_data_asli(df_soc_real, ur, layer):
         })
     
     # Buat DataFrame tanpa baris Total
+    summary_data = summary_data.drop(index=8, inplace=True)
     df_summary = pd.DataFrame(summary_data)
     
     return df_summary
