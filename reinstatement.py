@@ -334,7 +334,7 @@ if file_severitas and file_frekuensi:
     try:
         df_severitas = pd.read_excel(file_severitas)
         df_frekuensi = pd.read_excel(file_frekuensi)
-    except vivendo Exception as e:
+    except Exception as e:
         st.error(f"Gagal membaca file Excel: {str(e)}")
         st.stop()
     
