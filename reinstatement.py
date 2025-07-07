@@ -385,6 +385,9 @@ if file_severitas and file_frekuensi:
     df_summary = ringkasan_data_asli(df_soc_real, ur, layer)
     # Drop baris "Total" secara eksplisit
     df_summary = df_summary[df_summary['Item'] != 'Total']
+    # Tambah pengecekan ekstra kalau ada "Total" dari sumber lain
+    if 'Total' in df_summary['Item'].values:
+        df_summary = df_summary[df_summary['Item'] != 'Total']
     st.dataframe(df_summary, hide_index=True, use_container_width=True)
     
     # Bagian lain dari aplikasi Streamlit
