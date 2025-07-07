@@ -177,12 +177,10 @@ def rangkum_berdasarkan_frekuensi(df_simulasi, df_soc, jumlah_iterasi, _cache_ke
 # Fungsi untuk merangkum layer tertentu dengan caching
 @st.cache_data
 def rangkum_layer(df_soc, nomor_layer, batas_layer, jumlah_iterasi, maks_reinstatement, _cache_key=None):
-    # Menghitung total severitas per layer
     ringkasan_layer = df_soc.groupby(df_soc['Iterasi'].str.split('.').str[0]).agg({
         f'Layer {nomor_layer}': 'sum',
     }).rename(columns={f'Layer {nomor_layer}': f'Total Layer {nomor_layer}'})
     
-    # Menghitung frekuensi (jumlah klaim dengan nilai > 0) per layer
     frekuensi_layer = df_soc[df_soc[f'Layer {nomor_layer}'] > 0].groupby(
         df_soc['Iterasi'].str.split('.').str[0]
     ).size().to_frame(name=f'Frekuensi Layer {nomor_layer}')
@@ -277,6 +275,7 @@ def hitung_premi(df_ringkasan_frekuensi, daftar_df_layer, layer, reinstatement_p
     
     return df_premi_kombinasi
 
+# Fungsi untuk ringkasan data asli tanpa Total
 def ringkasan_data_asli(df_soc_real, ur, layer):
     summary_data = []
     
@@ -311,15 +310,13 @@ def ringkasan_data_asli(df_soc_real, ur, layer):
             'Rata-rata Klaim per OR/Layer': rata_rata_klaim
         })
     
-    # Buat DataFrame hanya dari data yang ada, tanpa baris Total
+    # Buat DataFrame dan pastikan tidak ada baris Total
     df_summary = pd.DataFrame(summary_data)
-    
-    # Pastikan tidak ada baris "Total" yang terselip
     if 'Total' in df_summary['Item'].values:
         df_summary = df_summary[df_summary['Item'] != 'Total']
     
     return df_summary
-    
+
 # Aplikasi Streamlit
 st.set_page_config(page_title="XoL Reinstatement 💰", layout="wide", page_icon="📊")
 st.title("Pricing Excess of Loss dengan Reinstatement 📊")
@@ -386,12 +383,12 @@ if file_severitas and file_frekuensi:
     st.subheader("Spreading of Claim (Data Asli)", divider="orange")
     st.dataframe(df_soc_real, hide_index=True, use_container_width=True)
     
-    # Ringkasan data asli dengan rata-rata klaim per OR dan layer (tanpa Total)
+    # Ringkasan data asli dengan rata-rata klaim per OR dan layer
     st.subheader("Ringkasan Data Asli dengan Rata-rata Klaim per OR dan Layer", divider="orange")
     df_summary = ringkasan_data_asli(df_soc_real, ur, layer)
     st.dataframe(df_summary, hide_index=True, use_container_width=True)
     
-    # Bagian lain dari aplikasi Streamlit (dari kode asli)
+    # Bagian lain dari aplikasi Streamlit
     rata_rata_frekuensi = np.mean(data_frekuensi)
     varians_frekuensi = np.var(data_frekuensi)
     
