@@ -311,10 +311,15 @@ def ringkasan_data_asli(df_soc_real, ur, layer):
             'Rata-rata Klaim per OR/Layer': rata_rata_klaim
         })
     
-    # Buat DataFrame tanpa baris Total
+    # Buat DataFrame hanya dari data yang ada, tanpa baris Total
     df_summary = pd.DataFrame(summary_data)
     
+    # Pastikan tidak ada baris "Total" yang terselip
+    if 'Total' in df_summary['Item'].values:
+        df_summary = df_summary[df_summary['Item'] != 'Total']
+    
     return df_summary
+    
 # Aplikasi Streamlit
 st.set_page_config(page_title="XoL Reinstatement 💰", layout="wide", page_icon="📊")
 st.title("Pricing Excess of Loss dengan Reinstatement 📊")
